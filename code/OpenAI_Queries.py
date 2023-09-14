@@ -145,7 +145,6 @@ try:
     st.set_page_config(layout="wide", menu_items=menu_items)
 
     llm_helper = LLMHelper(custom_prompt=st.session_state.custom_prompt, temperature=st.session_state.custom_temperature)
-
     # Get available languages for translation
     available_languages = get_languages()
 
