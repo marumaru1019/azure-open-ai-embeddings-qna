@@ -66,6 +66,7 @@ class LLMHelper:
         self.index_name: str = index_name
         self.model: str = os.getenv('OPENAI_EMBEDDINGS_ENGINE_DOC', "text-embedding-ada-002")
         self.deployment_name: str = os.getenv("OPENAI_ENGINE", os.getenv("OPENAI_ENGINES", "text-davinci-003"))
+        self.deployment_search_name: str = os.getenv("OPENAI_SEARCH_ENGINE", self.deployment_name)
         self.deployment_type: str = os.getenv("OPENAI_DEPLOYMENT_TYPE", "Text")
         self.temperature: float = float(os.getenv("OPENAI_TEMPERATURE", 0.7)) if temperature is None else temperature
         self.max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", -1)) if max_tokens is None else max_tokens
@@ -96,11 +97,12 @@ class LLMHelper:
         self.embeddings: OpenAIEmbeddings = OpenAIEmbeddings(model=self.model, chunk_size=1) if embeddings is None else embeddings
         if self.deployment_type == "Chat":
             self.llm: ChatOpenAI = ChatOpenAI(model_name=self.deployment_name, engine=self.deployment_name, temperature=self.temperature, max_tokens=self.max_tokens if self.max_tokens != -1 else None) if llm is None else llm
+            self.search_llm: ChatOpenAI = ChatOpenAI(model_name=self.deployment_search_name, engine=self.deployment_search_name, temperature=self.temperature, max_tokens=self.max_tokens if self.max_tokens != -1 else None) if llm is None else llm
         else:
             self.llm: AzureOpenAI = AzureOpenAI(deployment_name=self.deployment_name, temperature=self.temperature, max_tokens=self.max_tokens) if llm is None else llm
         if self.vector_store_type == "AzureSearch":
             self.vector_store: VectorStore = AzureSearch(azure_cognitive_search_name=self.vector_store_address, azure_cognitive_search_key=self.vector_store_password, index_name=self.index_name, embedding_function=self.embeddings.embed_query) if vector_store is None else vector_store
-            self.hybrid_store = AzureSearchVectorStoreRetriever(vectorstore=self.vector_store, search_type="semantic_hybrid")
+            self.hybrid_store = AzureSearchVectorStoreRetriever(vectorstore=self.vector_store, search_type="hybrid")
         else:
             self.vector_store: RedisExtended = RedisExtended(redis_url=self.vector_store_full_address, index_name=self.index_name, embedding_function=self.embeddings.embed_query) if vector_store is None else vector_store   
         self.k : int = 3 if k is None else k
@@ -431,8 +433,8 @@ class LLMHelper:
         return question, result['answer'], contextDict, sources
     
     def get_semantic_answer_lang_chain_search_engine(self, question, chat_history):
-        question_generator = LLMChain(llm=self.llm, prompt=CONDENSE_QUESTION_PROMPT, verbose=False)
-        doc_chain = load_qa_with_sources_chain(self.llm, chain_type="stuff", verbose=False, prompt=self.prompt)
+        question_generator = LLMChain(llm=self.search_llm, prompt=CONDENSE_QUESTION_PROMPT, verbose=False)
+        doc_chain = load_qa_with_sources_chain(self.search_llm, chain_type="stuff", verbose=False, prompt=self.prompt)
         chain = ConversationalRetrievalChain(
             retriever=self.hybrid_store,
             question_generator=question_generator,
